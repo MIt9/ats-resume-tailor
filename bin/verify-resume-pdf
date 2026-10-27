@@ -1,0 +1,5 @@
+#!/bin/sh
+# Verify ATS text layer of a resume PDF using ats-tailor
+PDF="$1"
+shift 2>/dev/null || true
+exec "$(dirname "$0")/ats-tailor" verify-pdf --pdf "$PDF" --keywords "$@"

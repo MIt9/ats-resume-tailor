@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ats-resume-tailor"
+version = "0.3.0"
+description = "ATS-friendly resume tailoring CLI adhering to strict honesty invariants"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "Dmytro Bilukha" },
+]
+dependencies = []
+
+[project.scripts]
+ats-tailor = "ats_tailor.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ats_tailor*"]
+exclude = ["tests*"]
+
+[tool.setuptools.package-data]
+ats_tailor = ["data/*.json"]

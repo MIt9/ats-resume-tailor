@@ -1,0 +1,3 @@
+#!/bin/sh
+# Compile markdown or HTML resume into PDF using ats-tailor
+exec "$(dirname "$0")/ats-tailor" pdf --resume "$1" --out "${2:-}"

@@ -1,0 +1,6 @@
+{
+  "Python": {"level": "personal", "wording": "Python (personal projects, PyPI packages)"},
+  "Prisma": {"level": "personal"},
+  "TypeORM": {"level": "confirmed"},
+  "Cypress": {"level": "confirmed", "evidence": "documented in profile resumes"}
+}
