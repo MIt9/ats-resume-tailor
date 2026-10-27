@@ -10,10 +10,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .postings import extract_keywords, extract_unrecognized
+from .resume import _claims
 from .taxonomy import find_matches, has_token
-
-_LABEL = re.compile(r"^\*\*([^*:\n]+):\*\*", re.M)
-_APPLICATIONS = re.compile(r"^## Applications submitted.*", re.M | re.S)
 
 # Weightings and credit multipliers
 REQUIRED_WEIGHT = 3.0
@@ -23,11 +21,6 @@ CREDIT_PRESENT = 1.0
 CREDIT_TAILORABLE = 0.75
 CREDIT_PARTIAL = 0.30
 CREDIT_GAP = 0.0
-
-
-def _claims(text: str) -> str:
-    """Resume text that counts as a claim: no skills labels, no applications log."""
-    return _LABEL.sub("", _APPLICATIONS.sub("", text))
 
 
 @dataclass
@@ -90,14 +83,19 @@ def calculate_score(job_text: str, resume_text: str, ledger: Any) -> ScoreResult
 
         has_exact = has_token(claims, s, c)
         has_alias = c in resume_canonicals
-        is_present = has_exact or has_alias
+        is_present = has_exact or (has_alias and lv in ("confirmed", "personal"))
 
-        if has_alias and not has_exact:
+        if has_alias and not has_exact and lv in ("confirmed", "personal"):
             variant_spellings.append((c, s))
 
         # Status and point calculation
         if is_present and lv in ("confirmed", "personal"):
             status = "present"
+            credit = CREDIT_PRESENT
+        elif has_exact and lv == "unknown":
+            # Candidate wrote it in the resume and the ledger has no row; a ledger
+            # "partial"/"not" is a denial and must stay a gap/review item.
+            status = "present_unverified"
             credit = CREDIT_PRESENT
         elif lv in ("confirmed", "personal"):
             status = "tailorable"
@@ -127,7 +125,7 @@ def calculate_score(job_text: str, resume_text: str, ledger: Any) -> ScoreResult
         classified.append(item)
 
         # Gap classification
-        if status != "present":
+        if status not in ("present", "present_unverified"):
             if lv == "partial":
                 gap_type = "review"
                 desc = (
@@ -183,7 +181,7 @@ def calculate_score(job_text: str, resume_text: str, ledger: Any) -> ScoreResult
     score = round(raw_score, 1)
     grade = grade_for_score(score)
 
-    matched_count = sum(1 for item in classified if item["status"] == "present")
+    matched_count = sum(1 for item in classified if item["status"] in ("present", "present_unverified"))
     tailorable_count = sum(1 for item in classified if item["status"] == "tailorable")
     partial_count = sum(1 for item in classified if item["status"] == "partial")
     gap_count = sum(1 for item in classified if item["status"] == "gap")

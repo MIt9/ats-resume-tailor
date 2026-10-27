@@ -95,7 +95,7 @@ Everything outside the Technical Skills block and the new Personal Projects sect
  "next_steps": [str]
 }
 ```
-`status` ∈ present|variant_added|skill_added|personal_added|needs_review|gap. `coverage.after` counts keywords present in the tailored text (gaps stay unmatched → coverage honestly < 100%).
+`status` ∈ present|present_unverified|variant_added|skill_added|personal_added|needs_review|gap. `coverage.after` counts keywords present in the tailored text (gaps stay unmatched → coverage honestly < 100%).
 
 ## scorer.py (Resume-to-Job Match Scoring)
 `calculate_score(job_text, resume_text, ledger) -> ScoreResult`
@@ -167,7 +167,7 @@ Evaluates candidate match on a 0–100 scale:
       "required": bool,
       "level": str,
       "evidence": str,
-      "status": "present|tailorable|partial|gap",
+      "status": "present|present_unverified|tailorable|partial|gap",
       "is_present": bool,
       "weight": float,
       "credit": float,

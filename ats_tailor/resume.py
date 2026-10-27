@@ -7,7 +7,7 @@ from .taxonomy import CATEGORY, find_matches, has_token
 SCHEMA = {
     "keywords": [{"canonical": "str", "spelling": "str (posting's form)", "required": "bool",
                   "level": "confirmed|personal|partial|not|unknown",
-                  "status": "present|variant_added|skill_added|personal_added|needs_review|gap",
+                  "status": "present|present_unverified|variant_added|skill_added|personal_added|needs_review|gap",
                   "evidence": "str", "target_line": "str (only when the resume was changed)"}],
     "coverage": {"before": {"matched": "int", "total": "int", "required_matched": "int", "required_total": "int"},
                  "after": "same shape as before"},
@@ -126,8 +126,8 @@ def tailor(job_text, resume_text, ledger):
         e = {"canonical": c, "spelling": s, "required": k.required, "level": lv, "evidence": ev}
         text = ledger.wording(c) or s
         pos = _alias_pos(lines, c) if lv in ("confirmed", "personal") else None
-        if has_token(body, s, c):
-            e["status"] = "present"
+        if has_token(body, s, c) and lv not in ("partial", "not"):
+            e["status"] = "present" if lv in ("confirmed", "personal") else "present_unverified"
         elif pos:
             n, col = pos
             lines[n] = lines[n][:col] + s + ", " + lines[n][col:]

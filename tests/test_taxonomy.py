@@ -39,6 +39,15 @@ class TaxonomyTests(unittest.TestCase):
     def test_javascript_not_java(self):
         self.assertEqual(m("JavaScript"), [("JavaScript", "JavaScript")])
 
+    def test_js_alias_case_sensitive(self):
+        self.assertEqual(m("JS 10y, TS 8y"), [("JavaScript", "JS")])
+        self.assertEqual(m("React/JS"), [("React", "React"), ("JavaScript", "JS")])
+        self.assertEqual(m("some regular js file"), [])  # case-sensitive: lowercase js must not match
+
+    def test_cloudfront_infra_taxonomy(self):
+        self.assertEqual(m("AWS, CloudFront"), [("AWS", "AWS"), ("CloudFront", "CloudFront")])
+        self.assertEqual(m("AWS CloudFront distribution"), [("CloudFront", "AWS CloudFront")])
+
     def test_token_boundaries(self):
         self.assertEqual(m("Reactive programming"), [])
         self.assertEqual(m("React+"), [])  # not followed by [A-Za-z0-9_+#]

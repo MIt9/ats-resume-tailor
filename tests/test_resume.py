@@ -53,6 +53,27 @@ class TailorBaseTests(unittest.TestCase):
             if g["spelling"].lower() not in BASE.lower():
                 self.assertNotIn(g["spelling"].lower(), self.out.lower())
 
+    def test_agile_scrum_present_unverified_not_injected(self):
+        job = "## Requirements\n- Agile\n"
+        resume = "# Candidate\n## Technical Skills\n**Practices:** Code Review, ADR, Agile/Scrum\n"
+        out, rep = tailor(job, resume, self.L)
+        self.assertEqual(self.L.level("Agile"), "unknown")
+        self.assertEqual(rep["keywords"][0]["status"], "present_unverified")
+        self.assertEqual(rep["keywords"][0]["level"], "unknown")
+        self.assertEqual(rep["added"], [])
+        self.assertEqual(rep["gaps"], [])
+        # Resume text remains byte-identical because Agile was not injected or altered
+        self.assertEqual(out, resume)
+
+    def test_tailor_never_injects_unconfirmed_keyword(self):
+        job = "## Requirements\n- Kafka\n- Terraform\n- Svelte\n"
+        resume = "# Candidate\n## Technical Skills\n**Backend:** Node.js\n"
+        out, rep = tailor(job, resume, self.L)
+        self.assertEqual(rep["added"], [])
+        self.assertEqual(len(rep["gaps"]), 3)
+        for g in ["Kafka", "Terraform", "Svelte"]:
+            self.assertNotIn(g.lower(), out.lower())
+
     def test_report_shape(self):
         self.assertEqual(set(self.rep), {"keywords", "coverage", "added", "gaps", "needs_review", "unrecognized", "next_steps"})
         self.assertEqual(self.rep["unrecognized"], ["FooBarDB"])

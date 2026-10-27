@@ -149,10 +149,10 @@ Calculates a deterministic 0–100 ATS compatibility score, classifies gaps by s
 #### Scoring Algorithm
 - **Weighted Requirements:** Required skills carry 3x higher weight than nice-to-have skills (75% / 25% balance).
 - **Status Credit:**
-  - **Present (100%):** Verified in candidate ledger (`confirmed` or `personal`) and already present in the resume.
+  - **Present (100%):** Present in the resume (either verified in candidate ledger as `confirmed` / `personal` with status `present`, or literally present in resume claims without ledger verification as `present_unverified`).
   - **Tailorable (75%):** Verified in candidate ledger, but missing from the resume (can be added honestly via `ats-tailor tailor`).
   - **Partial (30%):** Limited or partial competence in candidate ledger (`partial`).
-  - **Gap (0%):** Unconfirmed or explicitly denied in candidate ledger (`not` or `unknown`).
+  - **Gap (0%):** Missing from both resume and candidate ledger, or explicitly denied in ledger (`not` or `unknown`).
 - **Grades:**
   - `Excellent` (90+), `Good` (75–89), `Moderate` (60–74), `Low` (<60)
 - **Gap Classifications:**

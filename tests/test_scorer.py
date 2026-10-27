@@ -45,6 +45,45 @@ class ScorerCalculationTests(unittest.TestCase):
         self.assertEqual(res.breakdown["gap_count"], 0)
         self.assertEqual(res.gaps, [])
 
+    def test_ledger_denied_skill_in_resume_stays_gap(self):
+        class Denied:
+            def level(self, c):
+                return "not"
+
+            def evidence(self, c):
+                return "no hands-on experience"
+
+        job = "# Lead Engineer\n## Requirements\n- Kafka\n"
+        resume = "# Jane Doe\n## Experience\n- Used Kafka for event streaming\n"
+        res = calculate_score(job, resume, Denied())
+        self.assertEqual(res.keywords[0]["status"], "gap")
+        self.assertEqual(res.breakdown["gap_count"], 1)
+
+    def test_agile_scrum_present_not_in_ledger(self):
+        # Agile is in resume as slash-separated Agile/Scrum, but NOT in ledger
+        job = """# Lead Engineer
+## Requirements
+- Agile
+"""
+        resume = """# Jane Doe
+## Technical Skills
+**Practices:** Code Review, ADR, Agile/Scrum, Performance Engineering
+"""
+        res = calculate_score(job, resume, self.ledger)
+        self.assertEqual(self.ledger.level("Agile"), "unknown")
+        self.assertEqual(len(res.keywords), 1)
+        kw = res.keywords[0]
+        self.assertEqual(kw["canonical"], "Agile")
+        self.assertEqual(kw["level"], "unknown")
+        self.assertEqual(kw["status"], "present_unverified")
+        self.assertEqual(kw["credit"], 1.0)
+        self.assertEqual(kw["earned"], 3.0)
+        self.assertEqual(res.score, 100.0)
+        self.assertEqual(res.grade, "Excellent")
+        self.assertEqual(res.breakdown["matched_count"], 1)
+        self.assertEqual(res.breakdown["gap_count"], 0)
+        self.assertEqual(res.gaps, [])  # Never classify as CRITICAL gap
+
     def test_gap_heavy_match(self):
         job = """# Systems Engineer
 ## Requirements
