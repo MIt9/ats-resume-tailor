@@ -8,7 +8,7 @@ with open(Path(__file__).parent / "data" / "taxonomy.json", encoding="utf-8") as
     ENTRIES = json.load(_f)
 CATEGORY = {e["canonical"]: e["category"] for e in ENTRIES}
 # Common-word aliases match only with exact capitalisation (all-caps aliases too).
-_CS = {"Lit", "Express", "Rails", "Elastic", "Helm", "Go", "Node"}
+_CS = {"Lit", "Express", "Rails", "Elastic", "Helm", "Go", "Node", "aws-cdk"}
 _GO_CTX = re.compile(r"\b(backend|golang|services?|microservices?|api)\b", re.I)
 
 

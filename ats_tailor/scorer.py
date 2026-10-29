@@ -9,7 +9,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from .postings import extract_keywords, extract_unrecognized
+from .postings import extract_keywords, extract_unrecognized_classified
 from .resume import _claims
 from .taxonomy import find_matches, has_token
 
@@ -32,6 +32,9 @@ class ScoreResult:
     recommendations: list[str]
     keywords: list[dict[str, Any]] = field(default_factory=list)
     unrecognized: list[str] = field(default_factory=list)
+    upper_bound: bool = False
+    unrecognized_required: list[str] = field(default_factory=list)
+    unrecognized_warning: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -42,6 +45,9 @@ class ScoreResult:
             "recommendations": self.recommendations,
             "keywords": self.keywords,
             "unrecognized": self.unrecognized,
+            "upper_bound": self.upper_bound,
+            "unrecognized_required": self.unrecognized_required,
+            "unrecognized_warning": self.unrecognized_warning,
         }
 
     def __getitem__(self, item: str) -> Any:
@@ -181,6 +187,17 @@ def calculate_score(job_text: str, resume_text: str, ledger: Any) -> ScoreResult
     score = round(raw_score, 1)
     grade = grade_for_score(score)
 
+    # Unrecognized terms & required status
+    spans = [(m.start, m.end) for m in find_matches(job_text)]
+    unrec_classified = extract_unrecognized_classified(job_text, spans)
+    unrecognized = [t for t, _ in unrec_classified]
+    unrec_required = [t for t, req in unrec_classified if req]
+
+    upper_bound = bool(unrec_required)
+    unrec_warning: str | None = None
+    if unrec_required:
+        unrec_warning = f"Score is an upper bound: {len(unrec_required)} unrecognized terms not evaluated"
+
     matched_count = sum(1 for item in classified if item["status"] in ("present", "present_unverified"))
     tailorable_count = sum(1 for item in classified if item["status"] == "tailorable")
     partial_count = sum(1 for item in classified if item["status"] == "partial")
@@ -214,6 +231,10 @@ def calculate_score(job_text: str, resume_text: str, ledger: Any) -> ScoreResult
         "tailorable": tailorable_count,
         "gap": gap_count,
         "review": review_count,
+        # Always-present unrecognized keys
+        "upper_bound": upper_bound,
+        "unrecognized_required": unrec_required,
+        "unrecognized_warning": unrec_warning,
     }
 
     # Recommendations
@@ -253,10 +274,10 @@ def calculate_score(job_text: str, resume_text: str, ledger: Any) -> ScoreResult
     else:
         recs.append("Low match (<60). High gap density; evaluate role fit and emphasize transferable capabilities.")
 
-    # Unrecognized terms
-    spans = [(m.start, m.end) for m in find_matches(job_text)]
-    unrecognized = extract_unrecognized(job_text, spans)
-    if unrecognized:
+    # Unrecognized terms recommendations
+    if unrec_required:
+        recs.append(f"Warning: {unrec_warning} ({', '.join(unrec_required)}).")
+    elif unrecognized:
         recs.append("Check unrecognized terms by hand against posting: " + ", ".join(unrecognized))
 
     return ScoreResult(
@@ -267,16 +288,26 @@ def calculate_score(job_text: str, resume_text: str, ledger: Any) -> ScoreResult
         recommendations=recs,
         keywords=classified,
         unrecognized=unrecognized,
+        upper_bound=upper_bound,
+        unrecognized_required=unrec_required,
+        unrecognized_warning=unrec_warning,
     )
 
 
 def format_score_report(result: ScoreResult, detailed: bool = False) -> str:
     """Format human-friendly markdown / terminal report."""
     b = result.breakdown
+    unrec_warning = result.unrecognized_warning
     lines = [
         "# ATS Resume-to-Job Match Score",
         "",
         f"**Score:** {result.score:.1f}/100 — **{result.grade}**",
+    ]
+    # Show the caveat line at EVERY grade level when there are unrecognized required terms
+    if unrec_warning:
+        lines.append(f"*({unrec_warning})*")
+
+    lines += [
         "",
         "### Score Breakdown",
         f"- **Required Skills:** {b['required_points']:.1f} / {b['required_total']:.1f} pts ({b['required_score']:.1f}%)",
@@ -308,7 +339,10 @@ def format_score_report(result: ScoreResult, detailed: bool = False) -> str:
             )
 
     if result.unrecognized:
-        lines += ["", "### Unrecognized Terms", "- " + ", ".join(result.unrecognized)]
+        lines += ["", "### Unrecognized Terms"]
+        if unrec_warning:
+            lines.append(f"Warning: {unrec_warning}.")
+        lines.append("- " + ", ".join(result.unrecognized))
 
     if result.recommendations:
         lines += ["", "### Recommendations"]

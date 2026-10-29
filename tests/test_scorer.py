@@ -45,6 +45,98 @@ class ScorerCalculationTests(unittest.TestCase):
         self.assertEqual(res.breakdown["gap_count"], 0)
         self.assertEqual(res.gaps, [])
 
+    def test_supabase_extracted_and_marked_gap(self):
+        job = """# Full-Stack Developer
+## Requirements
+- React
+- TypeScript
+- Supabase
+"""
+        res = calculate_score(job, BASE, self.ledger)
+        self.assertEqual(self.ledger.level("Supabase"), "unknown")
+        canonicals = [k["canonical"] for k in res.keywords]
+        self.assertIn("Supabase", canonicals)
+        sup_kw = next(k for k in res.keywords if k["canonical"] == "Supabase")
+        self.assertEqual(sup_kw["status"], "gap")
+        self.assertTrue(sup_kw["required"])
+        self.assertTrue(any(g["canonical"] == "Supabase" and g["type"] == "critical" for g in res.gaps))
+        self.assertLess(res.score, 100.0)
+        self.assertEqual(res.score, 66.7)
+
+    def test_score_output_includes_unrecognized_caveat(self):
+        """grade must be exactly one of Excellent|Good|Moderate|Low; upper_bound=True when unrec required."""
+        job = """# Senior React & Node Engineer
+## Requirements
+- React
+- TypeScript
+- Node.js
+- GraphQL
+- UnknownNewEngine
+
+## Nice to have
+- Docker
+"""
+        res = calculate_score(job, BASE, self.ledger)
+        self.assertEqual(res.score, 100.0)
+        # grade is ALWAYS a clean value — not mutated with a suffix
+        self.assertEqual(res.grade, "Excellent")
+        # upper_bound flag signals the caveat
+        self.assertTrue(res.upper_bound)
+        self.assertIn("UnknownNewEngine", res.unrecognized_required)
+        self.assertIn("UnknownNewEngine", res.unrecognized)
+        self.assertIsNotNone(res.unrecognized_warning)
+        self.assertIn("Score is an upper bound: 1 unrecognized terms not evaluated", res.unrecognized_warning)
+        # Report shows the caveat at every grade
+        report = format_score_report(res)
+        self.assertIn("Score is an upper bound: 1 unrecognized terms not evaluated", report)
+        self.assertIn("Warning: Score is an upper bound: 1 unrecognized terms not evaluated.", report)
+        d = res.to_dict()
+        self.assertIn("UnknownNewEngine", d["unrecognized"])
+        self.assertTrue(any("Score is an upper bound" in r for r in d["recommendations"]))
+        # JSON always-present keys
+        self.assertTrue(d["upper_bound"])
+        self.assertIn("UnknownNewEngine", d["unrecognized_required"])
+        self.assertIsNotNone(d["unrecognized_warning"])
+
+    def test_grade_contract_always_clean(self):
+        """grade and breakdown.grade must always be exactly one of Excellent|Good|Moderate|Low."""
+        VALID_GRADES = {"Excellent", "Good", "Moderate", "Low"}
+        for job_text, label in [
+            ("## Requirements\n- React\n- TypeScript\n- Node.js\n- GraphQL\n- UnknownXYZ\n", "Excellent+unrec"),
+            ("## Requirements\n- React\n", "Excellent no unrec"),
+            ("## Requirements\n- Kafka\n", "Low"),
+        ]:
+            with self.subTest(label=label):
+                res = calculate_score(job_text, BASE, self.ledger)
+                self.assertIn(res.grade, VALID_GRADES, f"grade={res.grade!r} not a valid grade")
+                self.assertIn(res.breakdown["grade"], VALID_GRADES,
+                              f"breakdown.grade={res.breakdown['grade']!r} not a valid grade")
+
+    def test_upper_bound_and_unrecognized_required_always_present(self):
+        """upper_bound (bool) and unrecognized_required (list) must be present in to_dict() always."""
+        job = "## Requirements\n- React\n"
+        res = calculate_score(job, BASE, self.ledger)
+        d = res.to_dict()
+        self.assertIn("upper_bound", d)
+        self.assertIn("unrecognized_required", d)
+        self.assertIn("unrecognized_warning", d)
+        self.assertIsInstance(d["upper_bound"], bool)
+        self.assertIsInstance(d["unrecognized_required"], list)
+        self.assertFalse(d["upper_bound"])
+        self.assertEqual(d["unrecognized_required"], [])
+        self.assertIsNone(d["unrecognized_warning"])
+
+    def test_upper_bound_false_for_nice_to_have_only_unrec(self):
+        """An unrecognized term only in nice-to-have section must NOT set upper_bound=True."""
+        job = "## Requirements\n- React\n\n## Nice to have\n- UnknownXYZ\n"
+        res = calculate_score(job, BASE, self.ledger)
+        self.assertFalse(res.upper_bound)
+        self.assertEqual(res.unrecognized_required, [])
+        # unrecognized_warning is None since no required unrec terms
+        self.assertIsNone(res.unrecognized_warning)
+        # UnknownXYZ should still appear in unrecognized list
+        self.assertIn("UnknownXYZ", res.unrecognized)
+
     def test_ledger_denied_skill_in_resume_stays_gap(self):
         class Denied:
             def level(self, c):
@@ -254,12 +346,16 @@ class CliScoreTests(unittest.TestCase):
         )
         self.assertEqual(r.returncode, 0, r.stderr)
         data = json.loads(r.stdout)
-        self.assertEqual(
-            set(data.keys()),
-            {"score", "grade", "breakdown", "gaps", "recommendations", "keywords", "unrecognized"},
-        )
+        # Check required keys are present (allow extra keys)
+        required_keys = {"score", "grade", "breakdown", "gaps", "recommendations",
+                         "keywords", "unrecognized", "upper_bound", "unrecognized_required",
+                         "unrecognized_warning"}
+        self.assertTrue(required_keys.issubset(data.keys()),
+                        f"Missing keys: {required_keys - data.keys()}")
         self.assertIsInstance(data["score"], (int, float))
         self.assertIn(data["grade"], ["Excellent", "Good", "Moderate", "Low"])
+        self.assertIsInstance(data["upper_bound"], bool)
+        self.assertIsInstance(data["unrecognized_required"], list)
         self.assertGreaterEqual(len(data["gaps"]), 1)
         self.assertIn("FooBarDB", data["unrecognized"])
 
@@ -277,6 +373,18 @@ class CliScoreTests(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         data = json.loads(r.stdout)
         self.assertEqual(data["score"], 60.6)
+
+    def test_score_cli_unrecognized_warning(self):
+        r = run(
+            "score",
+            "--job", fx("posting_a.md"),
+            "--resume", fx("resume_base.md"),
+            "--inventory", fx("inventory.md"),
+            "--pets", fx("pets.md"),
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("Score is an upper bound: 1 unrecognized terms not evaluated", r.stdout)
+        self.assertIn("Warning: Score is an upper bound: 1 unrecognized terms not evaluated.", r.stdout)
 
     def test_score_bad_inputs(self):
         # Missing job file

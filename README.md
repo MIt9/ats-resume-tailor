@@ -155,6 +155,15 @@ Calculates a deterministic 0–100 ATS compatibility score, classifies gaps by s
   - **Gap (0%):** Missing from both resume and candidate ledger, or explicitly denied in ledger (`not` or `unknown`).
 - **Grades:**
   - `Excellent` (90+), `Good` (75–89), `Moderate` (60–74), `Low` (<60)
+  - **Upper-Bound Caveat:** If the posting contains unrecognized tech-like tokens anywhere outside a nice-to-have section (this includes page text such as company blurbs and footers, so the flag can fire on noise), the score is an upper bound. Only CamelCase and ALL-CAPS tokens are detected: lowercase or single-capital names (e.g. Bun, Deno, Zod) are not, so `upper_bound: false` does not guarantee every term was evaluated. The report flags `Score is an upper bound: N unrecognized terms not evaluated` and sets `upper_bound: true` in JSON. The grade itself remains one of `Excellent|Good|Moderate|Low` — unchanged.
+  - **Unrecognized Terms & Noise Filtering:** Candidate terms extracted outside the taxonomy appear under `### Unrecognized Terms` and in `--json` output as `unrecognized_required` / `unrecognized_warning`. Obvious noise (concatenated country dropdowns, section headings like `ABOUT`/`STACK`/`HIRING PROCESS`, company names, and corporate acronyms like `LLC`, `KPMG`) is filtered deterministically. Compliance/security terms (HIPAA, GDPR, SOC, ISO, PCI, DSS) are **not** filtered and surface as unrecognized terms when not in the taxonomy.
+- **Taxonomy Additions:**
+  - Includes canonical technologies with alias matching:
+    - **Frontend:** `Angular CDK`
+    - **Backend:** `SQL`, `Supabase`, `PostGIS`, `MikroORM`, `Fastify`, `BullMQ`
+    - **Infrastructure:** `AWS CDK`, `Cognito` (AWS Cognito), `ArgoCD`
+    - **AI:** `OpenAI API`
+    - **Tools:** `SonarQube`, `Testcontainers`, `Rush.js`
 - **Gap Classifications:**
   - `CRITICAL`: Missing required skill with no ledger backing. Action: Disclose honestly via cover letter highlighting transferable capabilities.
   - `ACTIONABLE`: Verified skill in candidate ledger missing from resume. Action: Run `ats-tailor tailor` to inject it honestly.

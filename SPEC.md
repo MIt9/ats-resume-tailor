@@ -116,6 +116,8 @@ Evaluates candidate match on a 0–100 scale:
   - `Good`: 75.0–89.9
   - `Moderate`: 60.0–74.9
   - `Low`: < 60.0
+  - `grade` is always exactly one of the four values above (never modified with a suffix).
+  - When the posting contains unrecognized tech-like tokens (CamelCase or ALL-CAPS) anywhere outside a nice-to-have section, the output includes `upper_bound: true` and the caveat string in `unrecognized_warning`. The grade itself is unchanged.
 - **Gap Classification (`gaps` list):**
   - `critical`: required & not in ledger (`not` or `unknown`). Action: disclose honestly via cover letter with transferable skills.
   - `actionable`: required & in ledger (`confirmed` or `personal`) but missing from resume. Action: tailor resume using `ats-tailor tailor`.
@@ -126,9 +128,12 @@ Evaluates candidate match on a 0–100 scale:
 {
   "score": float,
   "grade": "Excellent|Good|Moderate|Low",
+  "upper_bound": bool,
+  "unrecognized_required": [str],
+  "unrecognized_warning": "str or null",
   "breakdown": {
     "score": float,
-    "grade": str,
+    "grade": "Excellent|Good|Moderate|Low",
     "required_points": float,
     "required_total": float,
     "required_score": float,
@@ -147,7 +152,10 @@ Evaluates candidate match on a 0–100 scale:
     "matched": int,
     "tailorable": int,
     "gap": int,
-    "review": int
+    "review": int,
+    "upper_bound": bool,
+    "unrecognized_required": [str],
+    "unrecognized_warning": "str or null"
   },
   "gaps": [
     {
